@@ -43,6 +43,10 @@ export default function Waitlist() {
       status: 'confirmed',
       createdAt: new Date().toISOString().slice(0, 10),
       isAgeMismatch: false,
+      category: 'new_customer',
+      siblingGroupId: null,
+      isPromotionSlot: false,
+      transferSuggestion: null,
     }
     convertWaitlistToBooking(entry.id, booking)
   }

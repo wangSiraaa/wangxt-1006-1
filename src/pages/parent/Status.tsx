@@ -77,6 +77,10 @@ export default function Status() {
         status: 'confirmed',
         createdAt: new Date().toISOString().slice(0, 10),
         isAgeMismatch: ageMismatch,
+        category: 'new_customer',
+        siblingGroupId: null,
+        isPromotionSlot: false,
+        transferSuggestion: null,
       })
       scheduleStore.incrementBooked(scheduleId)
       auditStore.addLog('waitlist_converted', 'system', 'system', firstWaitlist.id, '候补自动转正')

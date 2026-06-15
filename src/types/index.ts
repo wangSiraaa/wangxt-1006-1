@@ -21,6 +21,8 @@ export interface Course {
   description: string
   ageRanges: CourseAgeRange[]
   tags: CourseTag[]
+  minAge?: number
+  maxAge?: number
 }
 
 export interface CourseAgeRange {
@@ -42,6 +44,8 @@ export interface Teacher {
   id: string
   name: string
   avatar: string
+  skills: string[]
+  workload: number
 }
 
 export interface Classroom {
@@ -64,6 +68,8 @@ export interface Schedule {
 
 export type BookingStatus = 'confirmed' | 'cancelled' | 'noshow' | 'completed'
 
+export type BookingCategory = 'new_customer' | 'sibling' | 'noshow_recovery' | 'conversion_followup'
+
 export interface Booking {
   id: string
   scheduleId: string
@@ -72,6 +78,37 @@ export interface Booking {
   status: BookingStatus
   createdAt: string
   isAgeMismatch: boolean
+  category: BookingCategory
+  siblingGroupId: string | null
+  isPromotionSlot: boolean
+  transferSuggestion: TransferSuggestion | null
+  isFree?: boolean
+  isReportDone?: boolean
+}
+
+export interface TransferSuggestion {
+  id: string
+  fromCourseId: string
+  toCourseId: string
+  reason: string
+  suggestedBy: string
+  createdAt: string
+}
+
+export interface FollowUpTodo {
+  id: string
+  bookingId: string
+  parentId: string
+  babyId: string
+  type: 'transfer' | 'conversion' | 'noshow' | 'general'
+  title: string
+  content: string
+  priority: 'high' | 'medium' | 'low'
+  status: 'pending' | 'completed'
+  assigneeId: string
+  dueDate: string | null
+  createdAt: string
+  completedAt: string | null
 }
 
 export type WaitlistStatus = 'waiting' | 'converted' | 'cancelled'
@@ -89,10 +126,26 @@ export interface WaitlistEntry {
 export interface TrialReport {
   id: string
   bookingId: string
-  performance: string
-  abilityScores: AbilityScore[]
-  courseSuggestion: string
-  teacherNote: string
+  babyId?: string
+  courseId?: string
+  reportDate?: string
+  performance?: string
+  score?: number
+  abilityScores?: AbilityScore[]
+  courseSuggestion?: string
+  teacherNote?: string
+  isClassSuitable?: boolean
+  unsuitableReason?: string | null
+  transferSuggestionId?: string | null
+  focusDuration?: string | number
+  strengths?: string
+  improvements?: string
+  nextAction?: string
+  signedByTeacher?: boolean
+  signedByParent?: boolean
+  teacherId?: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface AbilityScore {
@@ -112,6 +165,11 @@ export interface FunnelRecord {
   couponCode: string | null
   createdAt: string
   updatedAt: string
+  todoIds: string[]
+  isPromotionCustomer: boolean
+  siblingGroupId: string | null
+  category: BookingCategory
+  transferSuggestion: TransferSuggestion | null
 }
 
 export interface FollowUpNote {
@@ -153,9 +211,9 @@ export interface AuditLog {
 export interface FrequencyRule {
   id: string
   name: string
-  type: 'phone_weekly' | 'freeze_duration' | 'blacklist'
+  type: 'phone_weekly' | 'freeze_duration' | 'blacklist' | 'phone_transfer_allowed' | 'promotion_slots' | 'sibling_discount'
   value: number
-  unit: 'days' | 'times'
+  unit: 'days' | 'times' | 'boolean' | 'count'
   enabled: boolean
 }
 

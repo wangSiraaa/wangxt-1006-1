@@ -1,7 +1,7 @@
 import type {
   Parent, Baby, Course, Teacher, Classroom, Schedule,
   Booking, WaitlistEntry, TrialReport, FunnelRecord,
-  AuditLog, FrequencyRule,
+  AuditLog, FrequencyRule, FollowUpTodo,
 } from '@/types'
 
 const today = new Date()
@@ -65,9 +65,9 @@ export const DEMO_COURSES: Course[] = [
 ]
 
 export const DEMO_TEACHERS: Teacher[] = [
-  { id: 'tch1', name: '周老师', avatar: '👩‍🏫' },
-  { id: 'tch2', name: '吴老师', avatar: '👨‍🏫' },
-  { id: 'tch3', name: '郑老师', avatar: '👩‍🎨' },
+  { id: 'tch1', name: '周老师', avatar: '👩‍🏫', skills: ['大运动', '感统训练', '精细动作'], workload: 3 },
+  { id: 'tch2', name: '吴老师', avatar: '👨‍🏫', skills: ['音乐启蒙', '社交能力', '语言发展'], workload: 4 },
+  { id: 'tch3', name: '郑老师', avatar: '👩‍🎨', skills: ['精细动作', '手眼协调', '认知能力'], workload: 2 },
 ]
 
 export const DEMO_CLASSROOMS: Classroom[] = [
@@ -113,30 +113,37 @@ export const DEMO_BOOKINGS: Booking[] = [
   {
     id: 'bk1', scheduleId: 's1', babyId: 'b1', parentId: 'p1',
     status: 'confirmed', createdAt: fmt(addDays(today, -1)), isAgeMismatch: false,
+    category: 'sibling', siblingGroupId: 'sg1', isPromotionSlot: false, transferSuggestion: null,
   },
   {
     id: 'bk2', scheduleId: 's1', babyId: 'b3', parentId: 'p3',
     status: 'confirmed', createdAt: fmt(addDays(today, -1)), isAgeMismatch: false,
+    category: 'new_customer', siblingGroupId: null, isPromotionSlot: true, transferSuggestion: null,
   },
   {
     id: 'bk3', scheduleId: 's1', babyId: 'b6', parentId: 'p6',
     status: 'confirmed', createdAt: fmt(addDays(today, -1)), isAgeMismatch: false,
+    category: 'new_customer', siblingGroupId: null, isPromotionSlot: false, transferSuggestion: null,
   },
   {
     id: 'bk4', scheduleId: 's2', babyId: 'b2', parentId: 'p2',
     status: 'confirmed', createdAt: fmt(addDays(today, -1)), isAgeMismatch: false,
+    category: 'conversion_followup', siblingGroupId: null, isPromotionSlot: true, transferSuggestion: null,
   },
   {
     id: 'bk5', scheduleId: 's2', babyId: 'b4', parentId: 'p4',
     status: 'confirmed', createdAt: fmt(addDays(today, -1)), isAgeMismatch: true,
+    category: 'noshow_recovery', siblingGroupId: null, isPromotionSlot: false, transferSuggestion: null,
   },
   {
     id: 'bk6', scheduleId: 's6', babyId: 'b2', parentId: 'p2',
     status: 'completed', createdAt: fmt(addDays(today, -7)), isAgeMismatch: false,
+    category: 'new_customer', siblingGroupId: null, isPromotionSlot: false, transferSuggestion: null,
   },
   {
     id: 'bk7', scheduleId: 's4', babyId: 'b7', parentId: 'p1',
     status: 'confirmed', createdAt: fmt(addDays(today, -1)), isAgeMismatch: true,
+    category: 'sibling', siblingGroupId: 'sg1', isPromotionSlot: false, transferSuggestion: null,
   },
 ]
 
@@ -157,6 +164,33 @@ export const DEMO_REPORTS: TrialReport[] = [
     ],
     courseSuggestion: '建议报名音乐律动课正式课程',
     teacherNote: '宝宝表现很好，可以尝试进阶课程',
+    isClassSuitable: true,
+    unsuitableReason: null,
+    transferSuggestionId: null,
+  },
+]
+
+export const DEMO_TODOS: FollowUpTodo[] = [
+  {
+    id: 'td1', bookingId: 'bk6', parentId: 'p2', babyId: 'b2',
+    type: 'conversion', title: '试听后跟进回访',
+    content: '小柠檬试听音乐律动课后表现良好，建议跟进回访推荐正式课程',
+    priority: 'high', status: 'pending', assigneeId: 'consultant1',
+    dueDate: fmt(addDays(today, 2)), createdAt: fmt(addDays(today, -1)), completedAt: null,
+  },
+  {
+    id: 'td2', bookingId: 'bk5', parentId: 'p4', babyId: 'b4',
+    type: 'transfer', title: '年龄不匹配转班建议',
+    content: '小苹果年龄偏小，建议从音乐律动课转到感统启蒙课',
+    priority: 'medium', status: 'pending', assigneeId: 'consultant1',
+    dueDate: fmt(addDays(today, 1)), createdAt: fmt(addDays(today, -1)), completedAt: null,
+  },
+  {
+    id: 'td3', bookingId: 'bk2', parentId: 'p3', babyId: 'b3',
+    type: 'general', title: '促销名额确认',
+    content: '小葡萄使用了促销名额，请确认家长是否已知晓优惠详情',
+    priority: 'low', status: 'completed', assigneeId: 'consultant1',
+    dueDate: fmt(addDays(today, -1)), createdAt: fmt(addDays(today, -2)), completedAt: fmt(addDays(today, -1)),
   },
 ]
 
@@ -171,6 +205,11 @@ export const DEMO_FUNNEL: FunnelRecord[] = [
     couponCode: 'YX200',
     createdAt: fmt(addDays(today, -7)),
     updatedAt: fmt(addDays(today, -4)),
+    todoIds: ['td1'],
+    isPromotionCustomer: true,
+    siblingGroupId: null,
+    category: 'conversion_followup',
+    transferSuggestion: null,
   },
 ]
 
@@ -187,4 +226,7 @@ export const DEMO_RULES: FrequencyRule[] = [
   { id: 'r1', name: '手机号每周预约限制', type: 'phone_weekly', value: 1, unit: 'times', enabled: true },
   { id: 'r2', name: '爽约冻结天数', type: 'freeze_duration', value: 7, unit: 'days', enabled: true },
   { id: 'r3', name: '黑名单规则', type: 'blacklist', value: 3, unit: 'times', enabled: true },
+  { id: 'r4', name: '爽约转手机号预约', type: 'phone_transfer_allowed', value: 1, unit: 'boolean', enabled: true },
+  { id: 'r5', name: '每月促销名额', type: 'promotion_slots', value: 20, unit: 'count', enabled: true },
+  { id: 'r6', name: '兄弟姐妹优惠', type: 'sibling_discount', value: 10, unit: 'times', enabled: true },
 ]

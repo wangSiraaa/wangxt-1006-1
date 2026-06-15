@@ -1,5 +1,6 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import {
+  LayoutDashboard,
   BookOpen,
   CalendarClock,
   ListOrdered,
@@ -11,6 +12,7 @@ import {
 import { useAppStore } from '@/stores/appStore'
 
 const navItems = [
+  { label: '试听总览', icon: LayoutDashboard, path: '/consultant/overview' },
   { label: '课程管理', icon: BookOpen, path: '/consultant/courses' },
   { label: '排班管理', icon: CalendarClock, path: '/consultant/schedule' },
   { label: '候补队列', icon: ListOrdered, path: '/consultant/waitlist' },

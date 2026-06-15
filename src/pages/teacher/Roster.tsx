@@ -1,30 +1,70 @@
 import { useState, useMemo } from 'react'
 import {
   ChevronLeft, ChevronRight, Calendar, CheckCircle, UserX, Clock,
-  Phone, Baby
+  Phone, Baby, AlertCircle, Users, Star, Zap, Ticket
 } from 'lucide-react'
 import { useBookingStore } from '@/stores/bookingStore'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { useCourseStore } from '@/stores/courseStore'
 import { useAuditStore } from '@/stores/auditStore'
 import { useRuleStore } from '@/stores/ruleStore'
-import type { BookingStatus } from '@/types'
+import { useReportStore } from '@/stores/reportStore'
+import type { BookingStatus, BookingCategory } from '@/types'
 
 const fmtDate = (d: Date) => d.toISOString().slice(0, 10)
 
+const CATEGORY_LABEL: Record<BookingCategory, string> = {
+  new_customer: '新客',
+  sibling: '兄弟姐妹',
+  noshow_recovery: '爽约恢复',
+  conversion_followup: '转正跟进',
+}
+
+const CATEGORY_COLOR: Record<BookingCategory, string> = {
+  new_customer: 'bg-blue-100 text-blue-700',
+  sibling: 'bg-purple-100 text-purple-700',
+  noshow_recovery: 'bg-amber-100 text-amber-700',
+  conversion_followup: 'bg-green-100 text-green-700',
+}
+
 export default function Roster() {
   const [selectedDate, setSelectedDate] = useState(fmtDate(new Date()))
+  const [selectedTeacherId, setSelectedTeacherId] = useState<string | 'all'>('all')
 
   const bookingStore = useBookingStore()
   const scheduleStore = useScheduleStore()
   const courseStore = useCourseStore()
   const auditStore = useAuditStore()
   const ruleStore = useRuleStore()
+  const reportStore = useReportStore()
 
   const schedulesOnDate = useMemo(
-    () => scheduleStore.schedules.filter((s) => s.date === selectedDate),
-    [selectedDate, scheduleStore.schedules]
+    () => {
+      let schedules = scheduleStore.schedules.filter((s) => s.date === selectedDate)
+      if (selectedTeacherId !== 'all') {
+        schedules = schedules.filter((s) => s.teacherId === selectedTeacherId)
+      }
+      return schedules
+    },
+    [selectedDate, selectedTeacherId, scheduleStore.schedules]
   )
+
+  const teacherWorkload = useMemo(() => {
+    return scheduleStore.teachers.map((teacher) => {
+      const teacherSchedules = scheduleStore.schedules.filter(
+        (s) => s.date === selectedDate && s.teacherId === teacher.id
+      )
+      const totalBooked = teacherSchedules.reduce((sum, s) => sum + s.bookedCount, 0)
+      const totalCapacity = teacherSchedules.reduce((sum, s) => sum + s.maxCapacity, 0)
+      return {
+        ...teacher,
+        scheduleCount: teacherSchedules.length,
+        totalBooked,
+        totalCapacity,
+        loadPercent: totalCapacity > 0 ? Math.round((totalBooked / totalCapacity) * 100) : 0,
+      }
+    })
+  }, [scheduleStore.teachers, scheduleStore.schedules, selectedDate])
 
   function changeDate(offset: number) {
     const d = new Date(selectedDate)
@@ -57,6 +97,23 @@ export default function Roster() {
           parent.id,
           `${parent.name}因爽约被冻结${freezeDays}天`
         )
+
+        const todo = {
+          id: `td_${Date.now()}`,
+          bookingId,
+          parentId: booking.parentId,
+          babyId: booking.babyId,
+          type: 'noshow' as const,
+          title: '爽约回访',
+          content: '宝宝爽约未到，需要跟进确认原因并提醒冻结规则',
+          priority: 'high' as const,
+          status: 'pending' as const,
+          assigneeId: 'consultant1',
+          dueDate: null,
+          createdAt: fmtDate(new Date()),
+          completedAt: null,
+        }
+        reportStore.addTodo(todo)
       }
       auditStore.addLog('booking_noshow', 'teacher', 'system', bookingId, '标记爽约')
     }
@@ -80,7 +137,7 @@ export default function Roster() {
 
   return (
     <div className="min-h-screen bg-[#FFFBF5]">
-      <div className="max-w-2xl mx-auto px-4 py-6">
+      <div className="max-w-4xl mx-auto px-4 py-6">
         <h1 className="text-2xl font-bold text-gray-800 mb-4">试听课花名册</h1>
 
         <div className="bg-white rounded-xl shadow-sm p-4 flex items-center justify-between mb-6">
@@ -102,6 +159,58 @@ export default function Roster() {
           </button>
         </div>
 
+        <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+            <Users className="w-4 h-4 text-orange-500" /> 老师接待压力
+          </h3>
+          <div className="grid grid-cols-3 gap-3">
+            <button
+              onClick={() => setSelectedTeacherId('all')}
+              className={`p-3 rounded-lg border-2 transition text-left ${
+                selectedTeacherId === 'all'
+                  ? 'border-orange-400 bg-orange-50'
+                  : 'border-gray-100 hover:border-gray-200'
+              }`}
+            >
+              <p className="text-sm font-medium text-gray-800">全部老师</p>
+              <p className="text-xs text-gray-500 mt-1">
+                共 {scheduleStore.schedules.filter(s => s.date === selectedDate).length} 节课
+              </p>
+            </button>
+            {teacherWorkload.map((teacher) => (
+              <button
+                key={teacher.id}
+                onClick={() => setSelectedTeacherId(teacher.id)}
+                className={`p-3 rounded-lg border-2 transition text-left ${
+                  selectedTeacherId === teacher.id
+                    ? 'border-orange-400 bg-orange-50'
+                    : 'border-gray-100 hover:border-gray-200'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">{teacher.avatar}</span>
+                  <span className="text-sm font-medium text-gray-800">{teacher.name}</span>
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${
+                        teacher.loadPercent >= 80 ? 'bg-red-400' :
+                        teacher.loadPercent >= 50 ? 'bg-amber-400' : 'bg-green-400'
+                      }`}
+                      style={{ width: `${teacher.loadPercent}%` }}
+                    />
+                  </div>
+                  <span className="text-xs font-medium text-gray-500">{teacher.loadPercent}%</span>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  {teacher.totalBooked}/{teacher.totalCapacity} 人 · {teacher.scheduleCount}节课
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {schedulesOnDate.length === 0 && (
           <div className="bg-white rounded-xl shadow-sm p-8 text-center">
             <Calendar className="w-10 h-10 text-gray-300 mx-auto mb-2" />
@@ -115,6 +224,7 @@ export default function Roster() {
           const bookingsForSchedule = bookingStore.bookings.filter(
             (b) => b.scheduleId === schedule.id && b.status !== 'cancelled'
           )
+          const classroom = scheduleStore.classrooms.find((c) => c.id === schedule.classroomId)
 
           return (
             <div key={schedule.id} className="mb-6">
@@ -128,9 +238,15 @@ export default function Roster() {
                     <Clock className="w-3.5 h-3.5" /> {schedule.startTime}-{schedule.endTime}
                   </div>
                 </div>
-                <p className="text-xs opacity-75 mt-1">
-                  {schedule.bookedCount}/{schedule.maxCapacity} 人
-                </p>
+                <div className="flex items-center gap-4 mt-1 text-xs opacity-75">
+                  <span>{classroom?.name}</span>
+                  <span>{schedule.bookedCount}/{schedule.maxCapacity} 人</span>
+                  {teacher?.skills && (
+                    <span className="flex items-center gap-1">
+                      <Star className="w-3 h-3" /> {teacher.skills.slice(0, 2).join('、')}
+                    </span>
+                  )}
+                </div>
               </div>
 
               {bookingsForSchedule.length === 0 ? (
@@ -144,8 +260,8 @@ export default function Roster() {
                       <tr className="bg-gray-50 text-gray-500">
                         <th className="px-4 py-2 text-left font-medium">宝宝</th>
                         <th className="px-4 py-2 text-left font-medium">月龄</th>
+                        <th className="px-4 py-2 text-left font-medium">分类标签</th>
                         <th className="px-4 py-2 text-left font-medium">家长</th>
-                        <th className="px-4 py-2 text-left font-medium">电话</th>
                         <th className="px-4 py-2 text-center font-medium">状态</th>
                       </tr>
                     </thead>
@@ -153,6 +269,10 @@ export default function Roster() {
                       {bookingsForSchedule.map((booking) => {
                         const baby = bookingStore.babies.find((b) => b.id === booking.babyId)
                         const parent = bookingStore.parents.find((p) => p.id === booking.parentId)
+                        const siblingGroup = booking.siblingGroupId
+                          ? bookingStore.getSiblingGroup(booking.siblingGroupId)
+                          : []
+                        const hasSibling = siblingGroup.length > 1
 
                         return (
                           <tr key={booking.id} className="border-t border-gray-100">
@@ -160,14 +280,42 @@ export default function Roster() {
                               <div className="flex items-center gap-1.5">
                                 <Baby className="w-3.5 h-3.5 text-orange-400" />
                                 <span className="font-medium text-gray-800">{baby?.name ?? '-'}</span>
+                                {booking.isAgeMismatch && (
+                                  <span title="年龄不匹配">
+                                    <AlertCircle className="w-3.5 h-3.5 text-red-500" />
+                                  </span>
+                                )}
+                                {booking.isPromotionSlot && (
+                                  <span title="促销名额">
+                                    <Ticket className="w-3.5 h-3.5 text-purple-500" />
+                                  </span>
+                                )}
                               </div>
                             </td>
-                            <td className="px-4 py-3 text-gray-600">{baby?.ageMonths ?? '-'}月</td>
-                            <td className="px-4 py-3 text-gray-600">{parent?.name ?? '-'}</td>
                             <td className="px-4 py-3">
-                              <span className="flex items-center gap-1 text-gray-500">
-                                <Phone className="w-3 h-3" /> {parent?.phone ?? '-'}
+                              <span className={`${booking.isAgeMismatch ? 'text-red-500 font-medium' : 'text-gray-600'}`}>
+                                {baby?.ageMonths ?? '-'}月
                               </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex flex-wrap gap-1">
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${CATEGORY_COLOR[booking.category]}`}>
+                                  {CATEGORY_LABEL[booking.category]}
+                                </span>
+                                {hasSibling && (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700">
+                                    第{siblingGroup.findIndex(s => s.id === booking.id) + 1}宝
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div>
+                                <p className="text-gray-600">{parent?.name ?? '-'}</p>
+                                <span className="flex items-center gap-1 text-gray-400 text-xs">
+                                  <Phone className="w-3 h-3" /> {parent?.phone ?? '-'}
+                                </span>
+                              </div>
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center justify-center gap-1">

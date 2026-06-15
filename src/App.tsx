@@ -3,6 +3,7 @@ import RoleSelect from "@/pages/RoleSelect";
 import ConsultantLayout from "@/components/ConsultantLayout";
 import ParentLayout from "@/components/ParentLayout";
 import TeacherLayout from "@/components/TeacherLayout";
+import TrialOverview from "@/pages/consultant/TrialOverview";
 import Courses from "@/pages/consultant/Courses";
 import Schedule from "@/pages/consultant/Schedule";
 import Waitlist from "@/pages/consultant/Waitlist";
@@ -20,7 +21,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<RoleSelect />} />
         <Route path="/consultant" element={<ConsultantLayout />}>
-          <Route index element={<Navigate to="courses" replace />} />
+          <Route index element={<Navigate to="overview" replace />} />
+          <Route path="overview" element={<TrialOverview />} />
           <Route path="courses" element={<Courses />} />
           <Route path="schedule" element={<Schedule />} />
           <Route path="waitlist" element={<Waitlist />} />

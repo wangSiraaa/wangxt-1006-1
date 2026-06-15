@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Parent, Baby, Booking, WaitlistEntry, BookingStatus, WaitlistStatus } from '@/types'
+import type { Parent, Baby, Booking, WaitlistEntry, BookingStatus, WaitlistStatus, BookingCategory, TransferSuggestion } from '@/types'
 import { DEMO_PARENTS, DEMO_BABIES, DEMO_BOOKINGS, DEMO_WAITLIST } from '@/data/mockData'
 
 interface BookingState {
@@ -7,11 +7,13 @@ interface BookingState {
   babies: Baby[]
   bookings: Booking[]
   waitlist: WaitlistEntry[]
+  transferSuggestions: TransferSuggestion[]
   addParent: (p: Parent) => void
   updateParent: (id: string, data: Partial<Parent>) => void
   addBaby: (b: Baby) => void
   updateBaby: (id: string, data: Partial<Baby>) => void
   addBooking: (b: Booking) => void
+  updateBooking: (id: string, data: Partial<Booking>) => void
   updateBookingStatus: (id: string, status: BookingStatus) => void
   addWaitlist: (w: WaitlistEntry) => void
   updateWaitlistStatus: (id: string, status: WaitlistStatus) => void
@@ -23,6 +25,11 @@ interface BookingState {
   getBabiesByParent: (parentId: string) => Baby[]
   isPhoneFrozen: (phone: string) => { frozen: boolean; reason: string | null; until: string | null }
   isPhoneBlacklisted: (phone: string) => boolean
+  getSiblingGroup: (siblingGroupId: string) => Booking[]
+  getBookingsByCategory: (category: BookingCategory) => Booking[]
+  addTransferSuggestion: (t: TransferSuggestion) => void
+  getBookingsWithSiblings: (parentId: string) => Booking[]
+  createSiblingBookings: (parentId: string, siblingGroupId: string, bookings: Omit<Booking, 'siblingGroupId' | 'category'>[]) => Booking[]
 }
 
 const getWeekStart = (d: Date) => {
@@ -37,6 +44,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   babies: DEMO_BABIES,
   bookings: DEMO_BOOKINGS,
   waitlist: DEMO_WAITLIST,
+  transferSuggestions: [],
 
   addParent: (p) => set((s) => ({ parents: [...s.parents, p] })),
   updateParent: (id, data) => set((s) => ({
@@ -47,6 +55,9 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     babies: s.babies.map((bb) => (bb.id === id ? { ...bb, ...data } : bb)),
   })),
   addBooking: (b) => set((s) => ({ bookings: [...s.bookings, b] })),
+  updateBooking: (id, data) => set((s) => ({
+    bookings: s.bookings.map((b) => (b.id === id ? { ...b, ...data } : b)),
+  })),
   updateBookingStatus: (id, status) => set((s) => ({
     bookings: s.bookings.map((b) => (b.id === id ? { ...b, status } : b)),
   })),
@@ -128,4 +139,26 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   },
 
   getBabiesByParent: (parentId) => get().babies.filter((b) => b.parentId === parentId),
+
+  getSiblingGroup: (siblingGroupId) =>
+    get().bookings.filter((b) => b.siblingGroupId === siblingGroupId),
+
+  getBookingsByCategory: (category) =>
+    get().bookings.filter((b) => b.category === category),
+
+  addTransferSuggestion: (t) =>
+    set((s) => ({ transferSuggestions: [...s.transferSuggestions, t] })),
+
+  getBookingsWithSiblings: (parentId) =>
+    get().bookings.filter((b) => b.parentId === parentId && b.siblingGroupId),
+
+  createSiblingBookings: (parentId, siblingGroupId, bookings) => {
+    const newBookings = bookings.map((b) => ({
+      ...b,
+      siblingGroupId,
+      category: 'sibling' as BookingCategory,
+    }))
+    set((s) => ({ bookings: [...s.bookings, ...newBookings] }))
+    return newBookings
+  },
 }))
