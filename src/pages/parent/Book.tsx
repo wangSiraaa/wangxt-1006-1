@@ -1,17 +1,14 @@
 import { useState, useMemo } from 'react'
 import {
   Baby, Phone, User, Calendar, Clock, Users, AlertTriangle,
-  CheckCircle, ChevronRight, ChevronLeft, Star, X, Loader2
+  CheckCircle, ChevronRight, ChevronLeft
 } from 'lucide-react'
 import { useBookingStore } from '@/stores/bookingStore'
 import { useScheduleStore } from '@/stores/scheduleStore'
 import { useCourseStore } from '@/stores/courseStore'
 import { useRuleStore } from '@/stores/ruleStore'
 import { useAuditStore } from '@/stores/auditStore'
-import type { Booking, WaitlistEntry, Baby as BabyType, Parent } from '@/types'
-
-let idCounter = 100
-const nextId = (prefix: string) => `${prefix}${++idCounter}`
+import type { Booking, WaitlistEntry, Baby as BabyType } from '@/types'
 
 export default function Book() {
   const [step, setStep] = useState(1)
@@ -26,6 +23,7 @@ export default function Book() {
   const [bookingResult, setBookingResult] = useState<'confirmed' | 'waitlist' | null>(null)
   const [resultId, setResultId] = useState('')
   const [resultPosition, setResultPosition] = useState(0)
+  const [errorMessage, setErrorMessage] = useState('')
 
   const bookingStore = useBookingStore()
   const scheduleStore = useScheduleStore()
@@ -125,41 +123,44 @@ export default function Book() {
   }
 
   function executeBooking() {
-    if (!selectedSchedule || !existingParent) return
+    if (!selectedSchedule) return
+    setErrorMessage('')
+
+    const parent = bookingStore.getOrCreateParent(phone, parentName.trim())
+    const parentId = parent.id
+
+    const baby = bookingStore.getOrCreateBaby(
+      parentId,
+      effectiveBabyName.trim(),
+      effectiveAge,
+      selectedBabyId
+    )
+    const babyId = baby.id
+
+    const ageMismatch = selectedCourse
+      ? !selectedCourse.ageRanges.some((ar) => effectiveAge >= ar.minMonths && effectiveAge <= ar.maxMonths)
+      : false
 
     const weeklyRule = ruleStore.getRuleByType('phone_weekly')
     if (weeklyRule) {
       const weekBookings = bookingStore.getBookingsByPhoneThisWeek(phone)
       if (weekBookings.length >= weeklyRule.value) {
+        setErrorMessage(`该手机号本周已预约 ${weekBookings.length} 次试听课，每周限预约 ${weeklyRule.value} 次`)
         return
       }
     }
 
-    let parentId = existingParent.id
-    let babyId = selectedBabyId
-
-    if (!existingParent) {
-      const newParent: Parent = {
-        id: nextId('p'),
-        name: parentName,
-        phone,
-        isBlacklisted: false,
-        freezeUntil: null,
-        freezeReason: null,
-      }
-      bookingStore.addParent(newParent)
-      parentId = newParent.id
+    if (bookingStore.isPhoneBlacklisted(phone)) {
+      setErrorMessage('该手机号已被加入黑名单，无法预约')
+      return
     }
 
-    if (!babyId) {
-      const newBaby: BabyType = {
-        id: nextId('b'),
-        parentId,
-        name: babyName,
-        ageMonths,
-      }
-      bookingStore.addBaby(newBaby)
-      babyId = newBaby.id
+    const freezeInfo = bookingStore.isPhoneFrozen(phone)
+    if (freezeInfo.frozen) {
+      setErrorMessage(
+        `该手机号因${freezeInfo.reason ?? '爽约记录'}被冻结，${freezeInfo.until ?? '暂无'} 后方可预约`
+      )
+      return
     }
 
     const isFull = selectedSchedule.bookedCount >= selectedSchedule.maxCapacity
@@ -168,28 +169,33 @@ export default function Book() {
       const waitingCount = bookingStore.waitlist.filter(
         (w) => w.scheduleId === selectedSchedule.id && w.status === 'waiting'
       ).length
+      const wlId = `wl_${Date.now()}`
       const wlEntry: WaitlistEntry = {
-        id: nextId('wl'),
+        id: wlId,
         scheduleId: selectedSchedule.id,
-        babyId: babyId!,
+        babyId,
         parentId,
         position: waitingCount + 1,
         status: 'waiting',
         createdAt: new Date().toISOString().slice(0, 10),
       }
       bookingStore.addWaitlist(wlEntry)
-      auditStore.addLog('waitlist_joined', 'parent', parentId, wlEntry.id, `${parentName}为${effectiveBabyName}进入候补队列`)
+      auditStore.addLog(
+        'waitlist_joined',
+        'parent',
+        parentId,
+        wlEntry.id,
+        `${parent.name}为${baby.name}（${effectiveAge}月龄）进入${selectedSchedule.date}候补队列第${wlEntry.position}位`
+      )
       setBookingResult('waitlist')
       setResultId(wlEntry.id)
       setResultPosition(wlEntry.position)
     } else {
-      const ageMismatch = selectedCourse
-        ? !selectedCourse.ageRanges.some((ar) => effectiveAge >= ar.minMonths && effectiveAge <= ar.maxMonths)
-        : false
+      const bkId = `bk_${Date.now()}`
       const booking: Booking = {
-        id: nextId('bk'),
+        id: bkId,
         scheduleId: selectedSchedule.id,
-        babyId: babyId!,
+        babyId,
         parentId,
         status: 'confirmed',
         createdAt: new Date().toISOString().slice(0, 10),
@@ -197,7 +203,14 @@ export default function Book() {
       }
       bookingStore.addBooking(booking)
       scheduleStore.incrementBooked(selectedSchedule.id)
-      auditStore.addLog('booking_created', 'parent', parentId, booking.id, `${parentName}为${effectiveBabyName}预约成功`)
+      const mismatchText = ageMismatch ? `，年龄不匹配(${effectiveAge}月龄)` : ''
+      auditStore.addLog(
+        'booking_created',
+        'parent',
+        parentId,
+        booking.id,
+        `${parent.name}为${baby.name}预约${selectedSchedule.date}成功${mismatchText}`
+      )
       setBookingResult('confirmed')
       setResultId(booking.id)
     }
@@ -218,6 +231,7 @@ export default function Book() {
     setBookingResult(null)
     setResultId('')
     setResultPosition(0)
+    setErrorMessage('')
   }
 
   const weeklyRule = ruleStore.getRuleByType('phone_weekly')
@@ -472,7 +486,10 @@ export default function Book() {
                 <ChevronLeft className="w-4 h-4" /> 上一步
               </button>
               <button
-                onClick={() => selectedScheduleId && setStep(3)}
+                onClick={() => {
+                  setErrorMessage('')
+                  if (selectedScheduleId) setStep(3)
+                }}
                 disabled={!selectedScheduleId}
                 className={`flex-1 py-3 rounded-xl text-white font-semibold flex items-center justify-center gap-2 transition ${
                   selectedScheduleId
@@ -527,20 +544,28 @@ export default function Book() {
               )}
             </div>
 
+            {errorMessage && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+                <p className="text-sm text-red-700">{errorMessage}</p>
+              </div>
+            )}
+
             <div className="flex gap-3">
               <button
-                onClick={() => setStep(2)}
+                onClick={() => {
+                  setErrorMessage('')
+                  setStep(2)
+                }}
                 className="flex-1 py-3 rounded-xl border border-gray-300 text-gray-600 font-semibold flex items-center justify-center gap-2 hover:bg-gray-50 transition"
               >
                 <ChevronLeft className="w-4 h-4" /> 上一步
               </button>
               <button
                 onClick={handleProceedToStep3}
-                disabled={weeklyLimitReached}
+                disabled={false}
                 className={`flex-1 py-3 rounded-xl text-white font-semibold flex items-center justify-center gap-2 transition ${
-                  weeklyLimitReached
-                    ? 'bg-gray-300 cursor-not-allowed'
-                    : 'bg-orange-500 hover:bg-orange-600 active:scale-[0.98]'
+                  'bg-orange-500 hover:bg-orange-600 active:scale-[0.98]'
                 }`}
               >
                 {selectedSchedule.bookedCount >= selectedSchedule.maxCapacity ? '加入候补' : '确认预约'}
@@ -633,6 +658,12 @@ export default function Book() {
                   >
                     {bookingResult === 'confirmed' ? '已确认' : '候补中'}
                   </span>
+                </div>
+                <div className="flex justify-between text-xs pt-2 border-t border-gray-100">
+                  <span className="text-gray-400">
+                    {bookingResult === 'confirmed' ? '预约单号' : '候补单号'}
+                  </span>
+                  <span className="font-mono text-gray-500">{resultId}</span>
                 </div>
               </div>
             )}

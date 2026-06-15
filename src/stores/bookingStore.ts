@@ -17,6 +17,8 @@ interface BookingState {
   updateWaitlistStatus: (id: string, status: WaitlistStatus) => void
   convertWaitlistToBooking: (waitlistId: string, booking: Booking) => void
   getParentByPhone: (phone: string) => Parent | undefined
+  getOrCreateParent: (phone: string, name: string) => Parent
+  getOrCreateBaby: (parentId: string, name: string, ageMonths: number, existingBabyId?: string | null) => Baby
   getBookingsByPhoneThisWeek: (phone: string) => Booking[]
   getBabiesByParent: (parentId: string) => Baby[]
   isPhoneFrozen: (phone: string) => { frozen: boolean; reason: string | null; until: string | null }
@@ -61,6 +63,42 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     })),
 
   getParentByPhone: (phone) => get().parents.find((p) => p.phone === phone),
+
+  getOrCreateParent: (phone, name) => {
+    const existing = get().getParentByPhone(phone)
+    if (existing) return existing
+    const id = `p_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+    const newParent: Parent = {
+      id,
+      name,
+      phone,
+      isBlacklisted: false,
+      freezeUntil: null,
+      freezeReason: null,
+    }
+    set((s) => ({ parents: [...s.parents, newParent] }))
+    return newParent
+  },
+
+  getOrCreateBaby: (parentId, name, ageMonths, existingBabyId) => {
+    if (existingBabyId) {
+      const found = get().babies.find((b) => b.id === existingBabyId)
+      if (found) return found
+    }
+    const sameName = get().babies.find(
+      (b) => b.parentId === parentId && b.name === name && Math.abs(b.ageMonths - ageMonths) <= 1
+    )
+    if (sameName) return sameName
+    const id = `b_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+    const newBaby: Baby = {
+      id,
+      parentId,
+      name,
+      ageMonths,
+    }
+    set((s) => ({ babies: [...s.babies, newBaby] }))
+    return newBaby
+  },
 
   getBookingsByPhoneThisWeek: (phone) => {
     const parent = get().getParentByPhone(phone)
